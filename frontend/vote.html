@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vote - Blockchain Voting</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .test-mode {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+
+        .test-voters {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+
+        .test-voter-card {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .test-voter-card:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .test-voter-card.selected {
+            background: rgba(46, 204, 113, 0.3);
+            border-color: #2ecc71;
+        }
+
+        .private-key-input {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+
+        .vote-buttons {
+            display: flex;
+            gap: 1rem;
+            margin: 1rem 0;
+            flex-wrap: wrap;
+        }
+
+        .vote-status {
+            margin: 1rem 0;
+            padding: 1rem;
+            border-radius: 8px;
+            animation: fadeIn 0.5s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-vote-yea"></i>
+                <h1>Blockchain Voting System</h1>
+            </div>
+            <div class="nav-menu">
+                <a href="/" class="nav-link">Home</a>
+                <a href="/results" class="nav-link">Results</a>
+                <button onclick="logout()" class="btn btn-secondary">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Test Mode Banner -->
+        <div id="testMode" class="test-mode" style="display: none;">
+            <h3><i class="fas fa-flask"></i> Test Mode Active</h3>
+            <p>You are logged in as a test voter. Select a test voter below to vote without entering private key.</p>
+
+            <div class="test-voters" id="testVotersList">
+                <!-- Test voters will be loaded here -->
+            </div>
+        </div>
+
+        <!-- Voter Info -->
+        <div class="card" style="margin-top: 2rem;">
+            <div class="card-header">
+                <h2><i class="fas fa-user-check"></i> Voter Information</h2>
+                <span id="voterStatus" class="alert" style="padding: 0.5rem 1rem;"></span>
+            </div>
+            <div id="voterInfo">
+                <p>Loading voter information...</p>
+            </div>
+        </div>
+
+        <!-- Candidates -->
+        <div class="card">
+            <div class="card-header">
+                <h2><i class="fas fa-users"></i> Select Your Candidate</h2>
+                <span id="selectedCount">0 selected</span>
+            </div>
+
+            <div id="candidatesContainer" class="results-container">
+                <!-- Candidates will be loaded here -->
+            </div>
+
+            <div id="candidatesLoading" class="loading">
+                <div class="loading-spinner"></div>
+                <p>Loading candidates...</p>
+            </div>
+        </div>
+
+        <!-- Voting Section -->
+        <div class="card" id="votingSection">
+            <div class="card-header">
+                <h2><i class="fas fa-vote-yea"></i> Cast Your Vote</h2>
+            </div>
+
+            <!-- Test Vote Option -->
+            <div id="testVoteOption" style="display: none; margin-bottom: 2rem;">
+                <h3><i class="fas fa-bolt"></i> Quick Vote (Test Mode)</h3>
+                <p>Click below to vote with the selected test voter:</p>
+                <button onclick="submitTestVote()" id="testVoteBtn" class="btn btn-primary" disabled>
+                    <i class="fas fa-paper-plane"></i> Submit Vote with Test Voter
+                </button>
+                <p style="margin-top: 0.5rem; font-size: 0.9rem; color: #666;">
+                    <i class="fas fa-info-circle"></i> No private key needed for test voters
+                </p>
+            </div>
+
+            <!-- Regular Vote Option -->
+            <div id="regularVoteOption" style="margin-top: 2rem;">
+                <h3><i class="fas fa-key"></i> Regular Vote (With Private Key)</h3>
+                <p>Enter your private key to sign and submit your vote:</p>
+
+                <div class="form-group">
+                    <textarea id="privateKey" rows="3" placeholder="Paste your private key here"
+                             class="private-key-input"></textarea>
+                </div>
+
+                <div class="vote-buttons">
+                    <button onclick="submitVote()" id="submitVoteBtn" class="btn btn-primary" disabled>
+                        <i class="fas fa-paper-plane"></i> Submit Vote with Private Key
+                    </button>
+                    <button onclick="clearSelection()" class="btn btn-secondary">
+                        <i class="fas fa-times"></i> Clear Selection
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vote Status -->
+        <div id="voteStatus" class="vote-status" style="display: none;"></div>
+
+        <!-- Transaction Details -->
+        <div id="transactionDetails" class="card" style="display: none; margin-top: 2rem;">
+            <div class="card-header">
+                <h2><i class="fas fa-receipt"></i> Vote Transaction Details</h2>
+            </div>
+            <div id="transactionInfo">
+                <!-- Transaction info will be shown here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedCandidate = null;
+        let selectedTestVoter = null;
+        let voterId = sessionStorage.getItem('voter_id');
+        let isTestVoter = sessionStorage.getItem('is_test') === 'true';
+        let testVoters = [];
+
+        if (!voterId) {
+            window.location.href = '/login';
+        }
+
+        // Load system data
+        async function loadSystemData() {
+            try {
+                // Load test credentials
+                const testResponse = await fetch('/api/test-credentials');
+                const testData = await testResponse.json();
+
+                if (testData.success) {
+                    testVoters = testData.voters;
+
+                    if (isTestVoter) {
+                        document.getElementById('testMode').style.display = 'block';
+                        document.getElementById('testVoteOption').style.display = 'block';
+                        loadTestVoters();
+                    }
+                }
+
+                // Load voter info
+                loadVoterInfo();
+
+                // Load candidates
+                loadCandidates();
+
+            } catch (error) {
+                console.error('Error loading system data:', error);
+            }
+        }
+
+        // Load test voters
+        function loadTestVoters() {
+            const container = document.getElementById('testVotersList');
+            container.innerHTML = '';
+
+            testVoters.forEach(voter => {
+                const card = document.createElement('div');
+                card.className = 'test-voter-card';
+                card.dataset.voterId = voter.voter_id;
+                card.innerHTML = `
+                    <h4>${voter.name}</h4>
+                    <p><strong>Voter ID:</strong> ${voter.voter_id}</p>
+                    <p><strong>Status:</strong> <span id="status-${voter.voter_id}">Checking...</span></p>
+                `;
+
+                card.addEventListener('click', () => selectTestVoter(voter.voter_id));
+                container.appendChild(card);
+
+                // Check voter status
+                checkVoterStatus(voter.voter_id);
+            });
+        }
+
+        // Check voter status
+        async function checkVoterStatus(voterId) {
+            try {
+                const response = await fetch(`/api/voter/status?voter_id=${voterId}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    const statusElement = document.getElementById(`status-${voterId}`);
+                    if (data.status.has_voted) {
+                        statusElement.innerHTML = '<span style="color: #2ecc71;">✓ Voted</span>';
+                        statusElement.parentElement.parentElement.style.opacity = '0.6';
+                    } else {
+                        statusElement.innerHTML = '<span style="color: #f39c12;">Ready to vote</span>';
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking voter status:', error);
+            }
+        }
+
+        // Select test voter
+        function selectTestVoter(testVoterId) {
+            // Deselect all
+            document.querySelectorAll('.test-voter-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+
+            // Select new
+            const selectedCard = document.querySelector(`[data-voter-id="${testVoterId}"]`);
+            if (selectedCard) {
+                selectedCard.classList.add('selected');
+                selectedTestVoter = testVoterId;
+                document.getElementById('testVoteBtn').disabled = !selectedCandidate;
+            }
+        }
+
+        // Load voter info
+        async function loadVoterInfo() {
+            const voterInfoDiv = document.getElementById('voterInfo');
+            const statusDiv = document.getElementById('voterStatus');
+
+            try {
+                const response = await fetch(`/api/voter/status?voter_id=${voterId}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    if (data.status.has_voted) {
+                        statusDiv.className = 'alert alert-success';
+                        statusDiv.innerHTML = `<i class="fas fa-check-circle"></i> You have already voted`;
+
+                        voterInfoDiv.innerHTML = `
+                            <p><strong>Voter ID:</strong> ${voterId}</p>
+                            <p><strong>Voted for:</strong> ${data.status.candidate_id}</p>
+                            <p><strong>Status:</strong> ${data.status.status || 'confirmed'}</p>
+                            ${data.status.block_index ? `<p><strong>Recorded in Block:</strong> #${data.status.block_index}</p>` : ''}
+                        `;
+
+                        // Disable voting
+                        document.getElementById('votingSection').style.display = 'none';
+                    } else {
+                        statusDiv.className = 'alert alert-info';
+                        statusDiv.innerHTML = `<i class="fas fa-clock"></i> Ready to vote`;
+
+                        voterInfoDiv.innerHTML = `
+                            <p><strong>Voter ID:</strong> ${voterId}</p>
+                            <p><strong>Status:</strong> Eligible to vote</p>
+                            ${isTestVoter ? '<p><strong>Mode:</strong> Test Voter (No private key needed)</p>' : ''}
+                        `;
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading voter info:', error);
+                voterInfoDiv.innerHTML = '<p class="alert alert-error">Error loading voter info</p>';
+            }
+        }
+
+        // Load candidates
+        async function loadCandidates() {
+            const container = document.getElementById('candidatesContainer');
+            const loading = document.getElementById('candidatesLoading');
+
+            container.innerHTML = '';
+            loading.style.display = 'block';
+
+            try {
+                const response = await fetch('/api/candidates');
+                const data = await response.json();
+
+                if (data.success) {
+                    data.candidates.forEach(candidate => {
+                        const card = document.createElement('div');
+                        card.className = 'candidate-card';
+                        card.dataset.id = candidate.id;
+                        card.innerHTML = `
+                            <h3 class="candidate-name">${candidate.name}</h3>
+                            <p class="candidate-party">${candidate.party}</p>
+                            <p style="margin: 1rem 0; color: #666;">Votes: ${candidate.votes || 0}</p>
+                            <div style="text-align: center;">
+                                <button onclick="selectCandidate('${candidate.id}')" class="btn btn-secondary">
+                                    <i class="fas fa-check"></i> Select Candidate
+                                </button>
+                            </div>
+                        `;
+                        container.appendChild(card);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading candidates:', error);
+                container.innerHTML = '<div class="alert alert-error">Failed to load candidates</div>';
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        // Select candidate
+        function selectCandidate(candidateId) {
+            // Deselect all
+            document.querySelectorAll('.candidate-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+
+            // Select new
+            const selectedCard = document.querySelector(`[data-id="${candidateId}"]`);
+            if (selectedCard) {
+                selectedCard.classList.add('selected');
+                selectedCandidate = candidateId;
+                document.getElementById('selectedCount').textContent = '1 selected';
+
+                // Enable appropriate vote button
+                if (isTestVoter) {
+                    document.getElementById('testVoteBtn').disabled = !selectedTestVoter;
+                } else {
+                    document.getElementById('submitVoteBtn').disabled = false;
+                }
+            }
+        }
+
+        // Clear selection
+        function clearSelection() {
+            selectedCandidate = null;
+            selectedTestVoter = null;
+
+            document.querySelectorAll('.candidate-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+
+            document.querySelectorAll('.test-voter-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+
+            document.getElementById('selectedCount').textContent = '0 selected';
+            document.getElementById('testVoteBtn').disabled = true;
+            document.getElementById('submitVoteBtn').disabled = true;
+            document.getElementById('privateKey').value = '';
+            document.getElementById('transactionDetails').style.display = 'none';
+            document.getElementById('voteStatus').style.display = 'none';
+        }
+
+        // Submit test vote (no private key needed)
+        async function submitTestVote() {
+            if (!selectedCandidate || !selectedTestVoter) {
+                alert('Please select both a test voter and a candidate');
+                return;
+            }
+
+            const statusDiv = document.getElementById('voteStatus');
+            const btn = document.getElementById('testVoteBtn');
+            const originalText = btn.innerHTML;
+
+            // Show loading
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting Vote...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/api/test-vote', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        voter_id: selectedTestVoter,
+                        candidate_id: selectedCandidate
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    statusDiv.className = 'alert alert-success';
+                    statusDiv.innerHTML = `
+                        <i class="fas fa-check-circle"></i>
+                        <strong>Vote successfully cast!</strong><br>
+                        Voter: ${selectedTestVoter}<br>
+                        Candidate: ${selectedCandidate}<br>
+                        Status: ${data.voter_status?.status || 'pending'}
+                    `;
+                    statusDiv.style.display = 'block';
+
+                    // Show transaction details
+                    document.getElementById('transactionDetails').style.display = 'block';
+                    document.getElementById('transactionInfo').innerHTML = `
+                        <p><strong>Voter ID:</strong> ${selectedTestVoter}</p>
+                        <p><strong>Candidate:</strong> ${selectedCandidate}</p>
+                        <p><strong>Status:</strong> ${data.voter_status?.status || 'pending'}</p>
+                        <p><strong>Signature:</strong> ${data.signature?.substring(0, 50)}...</p>
+                        <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>
+                        <div class="alert alert-info" style="margin-top: 1rem;">
+                            <i class="fas fa-info-circle"></i>
+                            Your vote is now in the pending pool. Go to Admin panel to mine a block and confirm it.
+                        </div>
+                    `;
+
+                    // Update voter status
+                    setTimeout(() => {
+                        loadVoterInfo();
+                        checkVoterStatus(selectedTestVoter);
+                    }, 1000);
+
+                    // Clear selection
+                    clearSelection();
+
+                } else {
+                    statusDiv.className = 'alert alert-error';
+                    statusDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${data.error || 'Failed to cast vote'}`;
+                    statusDiv.style.display = 'block';
+                }
+            } catch (error) {
+                statusDiv.className = 'alert alert-error';
+                statusDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> Network error: ${error.message}`;
+                statusDiv.style.display = 'block';
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // Submit regular vote (with private key)
+        async function submitVote() {
+            if (!selectedCandidate || !voterId) {
+                alert('Please select a candidate');
+                return;
+            }
+
+            const privateKey = document.getElementById('privateKey').value.trim();
+
+            if (!privateKey) {
+                alert('Please enter your private key');
+                return;
+            }
+
+            const submitBtn = document.getElementById('submitVoteBtn');
+            const statusDiv = document.getElementById('voteStatus');
+            const originalText = submitBtn.innerHTML;
+
+            // Show loading
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing and Submitting...';
+            submitBtn.disabled = true;
+
+            try {
+                const response = await fetch('/api/vote', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        voter_id: voterId,
+                        candidate_id: selectedCandidate,
+                        private_key: privateKey
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    statusDiv.className = 'alert alert-success';
+                    statusDiv.innerHTML = `
+                        <i class="fas fa-check-circle"></i>
+                        <strong>Vote successfully cast!</strong><br>
+                        Your vote has been added to the blockchain.
+                    `;
+                    statusDiv.style.display = 'block';
+
+                    // Show transaction details
+                    document.getElementById('transactionDetails').style.display = 'block';
+                    document.getElementById('transactionInfo').innerHTML = `
+                        <p><strong>Voter ID:</strong> ${voterId}</p>
+                        <p><strong>Candidate:</strong> ${selectedCandidate}</p>
+                        <p><strong>Status:</strong> ${data.voter_status?.status || 'pending'}</p>
+                        <p><strong>Signature:</strong> ${data.signature?.substring(0, 50)}...</p>
+                        <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>
+                        <div class="alert alert-info" style="margin-top: 1rem;">
+                            <i class="fas fa-info-circle"></i>
+                            Your vote is now in the pending pool. An admin needs to mine a block to add it to the blockchain.
+                        </div>
+                    `;
+
+                    // Update voter status
+                    setTimeout(loadVoterInfo, 1000);
+
+                } else {
+                    statusDiv.className = 'alert alert-error';
+                    statusDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${data.error || 'Failed to cast vote'}`;
+                    statusDiv.style.display = 'block';
+                }
+            } catch (error) {
+                statusDiv.className = 'alert alert-error';
+                statusDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> Network error: ${error.message}`;
+                statusDiv.style.display = 'block';
+            } finally {
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            }
+        }
+
+        // Logout
+        function logout() {
+            sessionStorage.clear();
+            window.location.href = '/';
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', loadSystemData);
+    </script>
+</body>
+</html>

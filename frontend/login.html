@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Blockchain Voting</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-vote-yea"></i>
+                <h1>Blockchain Voting System</h1>
+            </div>
+            <div class="nav-menu">
+                <a href="/" class="nav-link">Home</a>
+                <a href="/register" class="nav-link">Register</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="form-container">
+            <h2 style="text-align: center; margin-bottom: 2rem;">
+                <i class="fas fa-sign-in-alt"></i> Voter Login
+            </h2>
+
+            <div id="message" class="alert" style="display: none;"></div>
+
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="voter_id">Voter ID</label>
+                    <input type="text" id="voter_id" required placeholder="Enter your voter ID">
+                    <small style="color: #666; display: block; margin-top: 0.5rem;">
+                        Your voter ID was provided during registration
+                    </small>
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    <i class="fas fa-sign-in-alt"></i> Login
+                </button>
+            </form>
+
+            <div style="text-align: center; margin-top: 1.5rem;">
+                <p>Don't have an account? <a href="/register">Register here</a></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const voterId = document.getElementById('voter_id').value;
+            const messageDiv = document.getElementById('message');
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+
+            // Show loading
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging in...';
+            submitBtn.disabled = true;
+
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ voter_id: voterId })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    messageDiv.className = 'alert alert-success';
+                    messageDiv.innerHTML = `<i class="fas fa-check-circle"></i> Login successful! Redirecting...`;
+                    messageDiv.style.display = 'block';
+
+                    // Store voter info in sessionStorage
+                    sessionStorage.setItem('voter_id', data.voter_id);
+                    sessionStorage.setItem('voter_name', data.name);
+
+                    // Redirect to vote page
+                    setTimeout(() => {
+                        window.location.href = '/vote';
+                    }, 1500);
+                } else {
+                    messageDiv.className = 'alert alert-error';
+                    messageDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${data.error || 'Login failed'}`;
+                    messageDiv.style.display = 'block';
+                }
+            } catch (error) {
+                messageDiv.className = 'alert alert-error';
+                messageDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> Network error: ${error.message}`;
+                messageDiv.style.display = 'block';
+            } finally {
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

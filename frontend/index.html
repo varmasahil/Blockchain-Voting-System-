@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blockchain Voting System</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-vote-yea"></i>
+                <h1>Blockchain Voting System</h1>
+            </div>
+            <div class="nav-menu">
+                <a href="/" class="nav-link">Home</a>
+                <a href="/vote" class="nav-link">Vote</a>
+                <a href="/results" class="nav-link">Results</a>
+                <a href="/admin" class="nav-link">Admin</a>
+                <a href="/login" class="btn btn-secondary">Login</a>
+                <a href="/register" class="btn btn-primary">Register</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content" style="text-align: center; padding: 4rem 0;">
+                <h2 style="font-size: 2.5rem; margin-bottom: 1rem;">Secure, Transparent Voting Powered by Blockchain</h2>
+                <p style="font-size: 1.2rem; margin-bottom: 2rem; color: #666;">
+                    Every vote is cryptographically secured and permanently recorded on the blockchain.
+                </p>
+                <div style="display: flex; gap: 1rem; justify-content: center;">
+                    <a href="/register" class="btn btn-primary btn-large">
+                        <i class="fas fa-user-plus"></i> Register to Vote
+                    </a>
+                    <a href="/vote" class="btn btn-secondary btn-large">
+                        <i class="fas fa-vote-yea"></i> Cast Your Vote
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section class="features">
+        <div class="container">
+            <h2 style="text-align: center; margin: 3rem 0;">Why Blockchain Voting?</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <i class="fas fa-shield-alt" style="font-size: 2rem; color: #3498db; margin-bottom: 1rem;"></i>
+                    <h3>Secure</h3>
+                    <p>Cryptographic encryption ensures vote integrity</p>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-eye" style="font-size: 2rem; color: #3498db; margin-bottom: 1rem;"></i>
+                    <h3>Transparent</h3>
+                    <p>Public ledger allows anyone to verify results</p>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-user-shield" style="font-size: 2rem; color: #3498db; margin-bottom: 1rem;"></i>
+                    <h3>Anonymous</h3>
+                    <p>Voter identity protected while vote is recorded</p>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-link" style="font-size: 2rem; color: #3498db; margin-bottom: 1rem;"></i>
+                    <h3>Immutable</h3>
+                    <p>Once recorded, votes cannot be altered</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Live Blockchain -->
+    <section class="blockchain-live">
+        <div class="container">
+            <div class="card">
+                <div class="card-header">
+                    <h2><i class="fas fa-link"></i> Live Blockchain</h2>
+                    <button onclick="loadBlockchain()" class="btn btn-secondary">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+                <div id="blockchain-container" class="blockchain-container">
+                    <!-- Blockchain blocks will be loaded here -->
+                </div>
+                <div id="blockchain-loading" class="loading">
+                    <div class="loading-spinner"></div>
+                    <p>Loading blockchain data...</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer style="background: #2c3e50; color: white; padding: 2rem 0; margin-top: 3rem;">
+        <div class="container">
+            <div style="text-align: center;">
+                <p>&copy; 2024 Blockchain Voting System - University Project</p>
+                <p style="margin-top: 1rem; color: #bbb;">
+                    <i class="fas fa-code"></i> Built with Python, Flask, and Blockchain Technology
+                </p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Load blockchain data
+        async function loadBlockchain() {
+            const container = document.getElementById('blockchain-container');
+            const loading = document.getElementById('blockchain-loading');
+
+            container.innerHTML = '';
+            loading.style.display = 'block';
+
+            try {
+                const response = await fetch('/api/chain');
+                const data = await response.json();
+
+                if (data.success) {
+                    data.chain.forEach(block => {
+                        const blockElement = document.createElement('div');
+                        blockElement.className = 'block';
+                        blockElement.innerHTML = `
+                            <div class="block-header">
+                                <span class="block-index">Block #${block.index}</span>
+                                <span class="block-hash">${block.hash.substring(0, 16)}...</span>
+                            </div>
+                            <p>Transactions: ${block.transaction_count}</p>
+                            <p>Previous: ${block.previous_hash.substring(0, 16)}...</p>
+                            <div class="block-transactions">
+                                ${block.transactions.map(tx => `
+                                    <div class="transaction">
+                                        Voter: ${tx.voter_id.substring(0, 8)}... →
+                                        Candidate: ${tx.candidate_id}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `;
+                        container.appendChild(blockElement);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading blockchain:', error);
+                container.innerHTML = '<div class="alert alert-error">Failed to load blockchain data</div>';
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        // Load blockchain on page load
+        document.addEventListener('DOMContentLoaded', loadBlockchain);
+    </script>
+</body>
+</html>

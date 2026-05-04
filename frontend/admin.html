@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Blockchain Voting</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-user-shield"></i>
+                <h1>Admin Panel - Blockchain Voting</h1>
+            </div>
+            <div class="nav-menu">
+                <a href="/" class="nav-link">Home</a>
+                <a href="/results" class="nav-link">Results</a>
+                <button onclick="logout()" class="btn btn-secondary">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Admin Login -->
+        <div id="loginSection" class="form-container" style="margin-top: 2rem;">
+            <h2 style="text-align: center; margin-bottom: 2rem;">
+                <i class="fas fa-lock"></i> Admin Login
+            </h2>
+
+            <div id="loginMessage" class="alert" style="display: none;"></div>
+
+            <form id="adminLoginForm">
+                <div class="form-group">
+                    <label for="password">Admin Password</label>
+                    <input type="password" id="password" required placeholder="Enter admin password">
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    <i class="fas fa-sign-in-alt"></i> Login as Admin
+                </button>
+            </form>
+        </div>
+
+        <!-- Admin Dashboard (hidden until login) -->
+        <div id="adminDashboard" style="display: none;">
+            <!-- Stats -->
+            <div class="card" style="margin-top: 2rem;">
+                <div class="card-header">
+                    <h2><i class="fas fa-tachometer-alt"></i> System Statistics</h2>
+                    <button onclick="loadAdminStats()" class="btn btn-secondary">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+
+                <div id="adminStats" class="stats-grid">
+                    <!-- Stats will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="admin-section">
+                <h2><i class="fas fa-cogs"></i> System Controls</h2>
+
+                <div id="controlMessage" class="alert" style="display: none;"></div>
+
+                <div class="admin-controls">
+                    <button onclick="mineBlock()" class="btn btn-primary">
+                        <i class="fas fa-hammer"></i> Mine Pending Votes
+                    </button>
+
+                    <button onclick="validateChain()" class="btn btn-secondary">
+                        <i class="fas fa-check-circle"></i> Validate Blockchain
+                    </button>
+
+                    <button onclick="showAddCandidateForm()" class="btn btn-secondary">
+                        <i class="fas fa-user-plus"></i> Add Candidate
+                    </button>
+                </div>
+            </div>
+
+            <!-- Pending Votes -->
+            <div class="admin-section">
+                <div class="card-header">
+                    <h2><i class="fas fa-clock"></i> Pending Votes</h2>
+                    <span id="pendingCount">0 votes pending</span>
+                </div>
+
+                <div id="pendingVotes" style="margin-top: 1rem;">
+                    <!-- Pending votes will be shown here -->
+                </div>
+            </div>
+
+            <!-- Blockchain -->
+            <div class="admin-section">
+                <div class="card-header">
+                    <h2><i class="fas fa-link"></i> Blockchain Explorer</h2>
+                    <button onclick="loadFullChain()" class="btn btn-secondary">
+                        <i class="fas fa-eye"></i> View Full Chain
+                    </button>
+                </div>
+
+                <div id="fullChain" class="blockchain-container" style="max-height: 500px; overflow-y: auto; margin-top: 1rem;">
+                    <!-- Full blockchain will be shown here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Candidate Modal -->
+    <div id="addCandidateModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: white; padding: 2rem; border-radius: 8px; max-width: 500px; width: 90%;">
+            <h2 style="margin-bottom: 1rem;"><i class="fas fa-user-plus"></i> Add New Candidate</h2>
+
+            <form id="addCandidateForm">
+                <div class="form-group">
+                    <label for="candidateId">Candidate ID</label>
+                    <input type="text" id="candidateId" required placeholder="e.g., candidate-5">
+                </div>
+
+                <div class="form-group">
+                    <label for="candidateName">Full Name</label>
+                    <input type="text" id="candidateName" required placeholder="Enter candidate name">
+                </div>
+
+                <div class="form-group">
+                    <label for="candidateParty">Party/Affiliation</label>
+                    <input type="text" id="candidateParty" required placeholder="Enter party name">
+                </div>
+
+                <div style="margin-top: 1.5rem; display: flex; gap: 1rem;">
+                    <button type="button" onclick="hideAddCandidateForm()" class="btn btn-secondary">
+                        Cancel
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        Add Candidate
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let isAdmin = false;
+
+        // Admin login
+        document.getElementById('adminLoginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const password = document.getElementById('password').value;
+            const messageDiv = document.getElementById('loginMessage');
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+
+            // Show loading
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging in...';
+            submitBtn.disabled = true;
+
+            try {
+                const response = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ password: password })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    isAdmin = true;
+                    document.getElementById('loginSection').style.display = 'none';
+                    document.getElementById('adminDashboard').style.display = 'block';
+                    loadAdminStats();
+                    loadFullChain();
+                } else {
+                    messageDiv.className = 'alert alert-error';
+                    messageDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${data.error || 'Login failed'}`;
+                    messageDiv.style.display = 'block';
+                }
+            } catch (error) {
+                messageDiv.className = 'alert alert-error';
+                messageDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> Network error: ${error.message}`;
+                messageDiv.style.display = 'block';
+            } finally {
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            }
+        });
+
+        // Load admin stats
+        async function loadAdminStats() {
+            if (!isAdmin) return;
+
+            try {
+                const response = await fetch('/api/admin/stats');
+                const data = await response.json();
+
+                if (data.success) {
+                    const stats = data.stats;
+                    document.getElementById('adminStats').innerHTML = `
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.total_voters}</div>
+                            <div class="stat-label">Total Voters</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.voters_voted}</div>
+                            <div class="stat-label">Voters Voted</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.total_candidates}</div>
+                            <div class="stat-label">Candidates</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.blocks_mined}</div>
+                            <div class="stat-label">Blocks Mined</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.pending_votes}</div>
+                            <div class="stat-label">Pending Votes</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.chain_valid ? '✓' : '✗'}</div>
+                            <div class="stat-label">Chain Valid</div>
+                        </div>
+                    `;
+
+                    document.getElementById('pendingCount').textContent = `${stats.pending_votes} votes pending`;
+                }
+            } catch (error) {
+                console.error('Error loading admin stats:', error);
+            }
+        }
+
+        // Mine block
+        async function mineBlock() {
+            if (!isAdmin) return;
+
+            const messageDiv = document.getElementById('controlMessage');
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mining...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/api/admin/mine', {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    messageDiv.className = 'alert alert-success';
+                    messageDiv.innerHTML = `
+                        <i class="fas fa-check-circle"></i>
+                        <strong>Block mined successfully!</strong><br>
+                        Block #${data.block.index} with ${data.block.transactions} transactions
+                    `;
+                    messageDiv.style.display = 'block';
+
+                    // Refresh stats and chain
+                    loadAdminStats();
+                    loadFullChain();
+                } else {
+                    messageDiv.className = 'alert alert-error';
+                    messageDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${data.error || 'Failed to mine block'}`;
+                    messageDiv.style.display = 'block';
+                }
+            } catch (error) {
+                messageDiv.className = 'alert alert-error';
+                messageDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> Network error: ${error.message}`;
+                messageDiv.style.display = 'block';
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // Validate chain
+        async function validateChain() {
+            if (!isAdmin) return;
+
+            const messageDiv = document.getElementById('controlMessage');
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Validating...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/api/chain');
+                const data = await response.json();
+
+                if (data.success) {
+                    messageDiv.className = 'alert alert-success';
+                    messageDiv.innerHTML = `
+                        <i class="fas fa-check-circle"></i>
+                        <strong>Blockchain validation successful!</strong><br>
+                        Chain length: ${data.length} blocks
+                    `;
+                    messageDiv.style.display = 'block';
+                }
+            } catch (error) {
+                messageDiv.className = 'alert alert-error';
+                messageDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> Validation error: ${error.message}`;
+                messageDiv.style.display = 'block';
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // Load full chain
+        async function loadFullChain() {
+            if (!isAdmin) return;
+
+            try {
+                const response = await fetch('/api/chain');
+                const data = await response.json();
+
+                if (data.success) {
+                    const chainDiv = document.getElementById('fullChain');
+                    chainDiv.innerHTML = '';
+
+                    data.chain.forEach(block => {
+                        const blockElement = document.createElement('div');
+                        blockElement.className = 'block';
+                        blockElement.innerHTML = `
+                            <div class="block-header">
+                                <span class="block-index">Block #${block.index}</span>
+                                <span class="block-hash">${block.hash.substring(0, 20)}...</span>
+                            </div>
+                            <p><strong>Transactions:</strong> ${block.transaction_count}</p>
+                            <p><strong>Previous:</strong> ${block.previous_hash.substring(0, 20)}...</p>
+                            <p><strong>Nonce:</strong> ${block.nonce}</p>
+                            <p><strong>Timestamp:</strong> ${new Date(block.timestamp * 1000).toLocaleString()}</p>
+                            <div class="block-transactions">
+                                ${block.transactions.map(tx => `
+                                    <div class="transaction">
+                                        <strong>${tx.voter_id.substring(0, 8)}...</strong> → ${tx.candidate_id}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `;
+                        chainDiv.appendChild(blockElement);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading chain:', error);
+            }
+        }
+
+        // Add candidate form
+        function showAddCandidateForm() {
+            document.getElementById('addCandidateModal').style.display = 'flex';
+        }
+
+        function hideAddCandidateForm() {
+            document.getElementById('addCandidateModal').style.display = 'none';
+            document.getElementById('addCandidateForm').reset();
+        }
+
+        // Submit new candidate
+        document.getElementById('addCandidateForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const candidateId = document.getElementById('candidateId').value;
+            const candidateName = document.getElementById('candidateName').value;
+            const candidateParty = document.getElementById('candidateParty').value;
+
+            try {
+                const response = await fetch('/api/admin/add-candidate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        candidate_id: candidateId,
+                        name: candidateName,
+                        party: candidateParty
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('Candidate added successfully!');
+                    hideAddCandidateForm();
+                } else {
+                    alert(`Error: ${data.error}`);
+                }
+            } catch (error) {
+                alert(`Network error: ${error.message}`);
+            }
+        });
+
+        // Logout
+        function logout() {
+            isAdmin = false;
+            document.getElementById('loginSection').style.display = 'block';
+            document.getElementById('adminDashboard').style.display = 'none';
+            document.getElementById('adminLoginForm').reset();
+            document.getElementById('loginMessage').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

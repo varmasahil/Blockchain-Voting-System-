@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Results - Blockchain Voting</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-vote-yea"></i>
+                <h1>Blockchain Voting System</h1>
+            </div>
+            <div class="nav-menu">
+                <a href="/" class="nav-link">Home</a>
+                <a href="/vote" class="nav-link">Vote</a>
+                <a href="/admin" class="nav-link">Admin</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="card" style="margin-top: 2rem;">
+            <div class="card-header">
+                <h2><i class="fas fa-chart-bar"></i> Live Election Results</h2>
+                <button onclick="loadResults()" class="btn btn-secondary">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+
+            <div id="stats" class="stats-grid" style="margin: 2rem 0;">
+                <!-- Stats will be loaded here -->
+            </div>
+
+            <div id="resultsContainer" class="results-container">
+                <!-- Results will be loaded here -->
+            </div>
+
+            <div id="resultsLoading" class="loading">
+                <div class="loading-spinner"></div>
+                <p>Loading election results...</p>
+            </div>
+        </div>
+
+        <!-- Blockchain View -->
+        <div class="card">
+            <div class="card-header">
+                <h2><i class="fas fa-link"></i> Recent Blockchain Activity</h2>
+            </div>
+            <div id="blockchainView" class="blockchain-container" style="max-height: 400px; overflow-y: auto;">
+                <!-- Recent blocks will be shown here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Load results
+        async function loadResults() {
+            const statsDiv = document.getElementById('stats');
+            const resultsDiv = document.getElementById('resultsContainer');
+            const loadingDiv = document.getElementById('resultsLoading');
+            const blockchainDiv = document.getElementById('blockchainView');
+
+            loadingDiv.style.display = 'block';
+
+            try {
+                // Load election results
+                const resultsResponse = await fetch('/api/results');
+                const resultsData = await resultsResponse.json();
+
+                // Load blockchain data
+                const chainResponse = await fetch('/api/chain');
+                const chainData = await chainResponse.json();
+
+                if (resultsData.success) {
+                    const results = resultsData.results;
+
+                    // Update stats
+                    statsDiv.innerHTML = `
+                        <div class="stat-card">
+                            <div class="stat-value">${results.total_votes}</div>
+                            <div class="stat-label">Total Votes</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${results.blocks_mined}</div>
+                            <div class="stat-label">Blocks Mined</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${results.candidates.length}</div>
+                            <div class="stat-label">Candidates</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${results.chain_valid ? '✓' : '✗'}</div>
+                            <div class="stat-label">Chain Valid</div>
+                        </div>
+                    `;
+
+                    // Update results
+                    resultsDiv.innerHTML = '';
+                    results.candidates.forEach(candidate => {
+                        const percentage = results.total_votes > 0 ?
+                            Math.round((candidate.votes / results.total_votes) * 100) : 0;
+
+                        const card = document.createElement('div');
+                        card.className = 'candidate-card';
+                        card.innerHTML = `
+                            <h3 class="candidate-name">${candidate.name}</h3>
+                            <p class="candidate-party">${candidate.party}</p>
+                            <div class="vote-progress">
+                                <div class="vote-fill" style="width: ${percentage}%"></div>
+                            </div>
+                            <div class="vote-count">
+                                ${candidate.votes} votes (${percentage}%)
+                            </div>
+                        `;
+                        resultsDiv.appendChild(card);
+                    });
+                }
+
+                // Update blockchain view
+                if (chainData.success) {
+                    blockchainDiv.innerHTML = '';
+                    // Show last 5 blocks
+                    chainData.chain.slice(-5).reverse().forEach(block => {
+                        const blockElement = document.createElement('div');
+                        blockElement.className = 'block';
+                        blockElement.innerHTML = `
+                            <div class="block-header">
+                                <span class="block-index">Block #${block.index}</span>
+                                <span class="block-hash">${block.hash.substring(0, 16)}...</span>
+                            </div>
+                            <p>${block.transaction_count} votes</p>
+                            <p>Mined: ${new Date(block.timestamp * 1000).toLocaleTimeString()}</p>
+                        `;
+                        blockchainDiv.appendChild(blockElement);
+                    });
+                }
+
+            } catch (error) {
+                console.error('Error loading results:', error);
+                resultsDiv.innerHTML = '<div class="alert alert-error">Failed to load results</div>';
+            } finally {
+                loadingDiv.style.display = 'none';
+            }
+        }
+
+        // Auto-refresh every 30 seconds
+        setInterval(loadResults, 30000);
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', loadResults);
+    </script>
+</body>
+</html>

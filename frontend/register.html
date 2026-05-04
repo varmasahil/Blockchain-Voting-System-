@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - Blockchain Voting</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-vote-yea"></i>
+                <h1>Blockchain Voting System</h1>
+            </div>
+            <div class="nav-menu">
+                <a href="/" class="nav-link">Home</a>
+                <a href="/login" class="nav-link">Login</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="form-container">
+            <h2 style="text-align: center; margin-bottom: 2rem;">
+                <i class="fas fa-user-plus"></i> Voter Registration
+            </h2>
+
+            <div id="message" class="alert" style="display: none;"></div>
+
+            <form id="registerForm">
+                <div class="form-group">
+                    <label for="name">Full Name *</label>
+                    <input type="text" id="name" required placeholder="Enter your full name">
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Email Address *</label>
+                    <input type="email" id="email" required placeholder="Enter your email">
+                </div>
+
+                <div class="form-group">
+                    <label for="student_id">Student ID</label>
+                    <input type="text" id="student_id" placeholder="Enter your student ID">
+                </div>
+
+                <div class="form-group">
+                    <label for="department">Department</label>
+                    <select id="department">
+                        <option value="">Select Department</option>
+                        <option value="Computer Science">Computer Science</option>
+                        <option value="Engineering">Engineering</option>
+                        <option value="Mathematics">Mathematics</option>
+                        <option value="Physics">Physics</option>
+                        <option value="Business">Business Administration</option>
+                        <option value="Law">Law</option>
+                        <option value="Medicine">Medicine</option>
+                        <option value="Arts">Arts & Humanities</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    <i class="fas fa-user-plus"></i> Register
+                </button>
+            </form>
+
+            <div style="text-align: center; margin-top: 1.5rem;">
+                <p>Already have an account? <a href="/login">Login here</a></p>
+            </div>
+        </div>
+
+        <!-- Registration Success Modal -->
+        <div id="successModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center;">
+            <div style="background: white; padding: 2rem; border-radius: 8px; max-width: 500px; width: 90%;">
+                <h2 style="color: #2ecc71; margin-bottom: 1rem;">
+                    <i class="fas fa-check-circle"></i> Registration Successful!
+                </h2>
+
+                <div id="credentials" style="background: #f8f9fa; padding: 1rem; border-radius: 4px; margin: 1rem 0; font-family: monospace;">
+                    <!-- Credentials will be shown here -->
+                </div>
+
+                <div class="alert alert-info">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Important:</strong> Save your private key securely. You will need it to vote.
+                </div>
+
+                <div style="margin-top: 1.5rem; display: flex; gap: 1rem;">
+                    <button onclick="copyCredentials()" class="btn btn-secondary">
+                        <i class="fas fa-copy"></i> Copy Credentials
+                    </button>
+                    <button onclick="goToLogin()" class="btn btn-primary">
+                        <i class="fas fa-sign-in-alt"></i> Go to Login
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('registerForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const formData = {
+                name: document.getElementById('name').value,
+                email: document.getElementById('email').value,
+                student_id: document.getElementById('student_id').value,
+                department: document.getElementById('department').value
+            };
+
+            const messageDiv = document.getElementById('message');
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+
+            // Show loading
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Registering...';
+            submitBtn.disabled = true;
+
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Show success modal with credentials
+                    const credentialsDiv = document.getElementById('credentials');
+                    credentialsDiv.innerHTML = `
+                        <p><strong>Voter ID:</strong> ${data.voter_id}</p>
+                        <p><strong>Private Key:</strong> ${data.private_key.substring(0, 50)}...</p>
+                        <p><strong>Public Key:</strong> ${data.public_key.substring(0, 50)}...</p>
+                    `;
+
+                    // Store credentials in sessionStorage
+                    sessionStorage.setItem('registration_data', JSON.stringify(data));
+
+                    // Show modal
+                    document.getElementById('successModal').style.display = 'flex';
+                } else {
+                    messageDiv.className = 'alert alert-error';
+                    messageDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${data.error || 'Registration failed'}`;
+                    messageDiv.style.display = 'block';
+                }
+            } catch (error) {
+                messageDiv.className = 'alert alert-error';
+                messageDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> Network error: ${error.message}`;
+                messageDiv.style.display = 'block';
+            } finally {
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            }
+        });
+
+        function copyCredentials() {
+            const data = JSON.parse(sessionStorage.getItem('registration_data'));
+            const text = `Blockchain Voting System - Your Credentials\n
+Voter ID: ${data.voter_id}\n
+Private Key: ${data.private_key}\n
+Public Key: ${data.public_key}\n
+IMPORTANT: Keep your private key secure and never share it!`;
+
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Credentials copied to clipboard!');
+            });
+        }
+
+        function goToLogin() {
+            window.location.href = '/login';
+        }
+    </script>
+</body>
+</html>
